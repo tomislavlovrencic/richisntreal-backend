@@ -1,37 +1,66 @@
 package bootstrap
 
 import (
+	"errors"
+	"fmt"
 	"log"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+
 	"richisntreal-backend/cmd/config"
 	"richisntreal-backend/internal/api/handlers"
 	"richisntreal-backend/internal/core/services"
-	"richisntreal-backend/internal/infrastructure/mysql"
+	mysqlInfra "richisntreal-backend/internal/infrastructure/mysql"
 )
 
-// NewRouter wires up config, DB, services, handlers, and returns your mux.
 func NewRouter() *chi.Mux {
-	// 1) load config
+	// 1) Load config
 	if err := config.Load(); err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 	cfg := config.Get()
 
-	// 2) init MySQL
-	mysqlClient, err := mysql.NewMySQL(cfg.MySQL)
+	// 2) Run migrations
+	runMigrations(cfg.MySQL)
+
+	// 3) Init MySQL client
+	mysqlClient, err := mysqlInfra.NewMySQL(cfg.MySQL)
 	if err != nil {
 		log.Fatalf("failed to connect to MySQL: %v", err)
 	}
 
-	// 3) init repo / service / handler
-	userRepo := mysql.NewUserRepository(mysqlClient.DB)
+	// 4) Wire services & handlers
+	userRepo := mysqlInfra.NewUserRepository(mysqlClient.DB)
 	userSvc := services.NewUserService(userRepo, cfg.App.JWTSecret)
 	userHandler := handlers.NewUserHandler(userSvc)
 
-	// 4) mount routes
+	// 5) Mount routes
 	r := chi.NewRouter()
 	userHandler.RegisterRoutes(r)
-
 	return r
+}
+
+// runMigrations applies all “.up.sql” scripts in migrations/ against your DB.
+func runMigrations(mysqlCfg config.MySQL) {
+	// source://directory and database://dsn
+	sourceURL := "file://migrations"
+	dbURL := fmt.Sprintf(
+		"mysql://%s:%s@tcp(%s:%s)/%s?multiStatements=true",
+		mysqlCfg.Username,
+		mysqlCfg.Password,
+		mysqlCfg.Host,
+		mysqlCfg.Port,
+		mysqlCfg.Database,
+	)
+
+	m, err := migrate.New(sourceURL, dbURL)
+	if err != nil {
+		log.Fatalf("migrations: failed to initialize: %v", err)
+	}
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		log.Fatalf("migrations: failed to run up: %v", err)
+	}
+	log.Println("migrations: applied all available migrations")
 }
