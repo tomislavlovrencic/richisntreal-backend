@@ -49,12 +49,17 @@ func NewRouter() *chi.Mux {
 	orderService := services.NewOrderService(orderRepo, cartRepo)
 	orderHandler := handlers.NewOrderHandler(orderService)
 
+	payRepo := mysql.NewPaymentRepository(mysqlClient.DB)
+	paySvc := services.NewPaymentService(payRepo)
+	payHandler := handlers.NewPaymentHandler(paySvc, orderService)
+
 	// 5) Mount routes
 	r := chi.NewRouter()
 	userHandler.RegisterRoutes(r)
 	cartHandler.RegisterRoutes(r)
 	prodHandler.RegisterRoutes(r)
 	orderHandler.RegisterRoutes(r)
+	payHandler.RegisterRoutes(r)
 	return r
 }
 
