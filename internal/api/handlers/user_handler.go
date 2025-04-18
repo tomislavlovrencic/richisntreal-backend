@@ -11,12 +11,12 @@ import (
 
 // UserHandler wires HTTP requests to user-related services.
 type UserHandler struct {
-	Service *services.UserService
+	userService *services.UserService
 }
 
 // NewUserHandler constructs a new UserHandler.
-func NewUserHandler(s *services.UserService) *UserHandler {
-	return &UserHandler{Service: s}
+func NewUserHandler(userService *services.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
 // RegisterRoutes binds user routes onto the router.
@@ -45,7 +45,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.Service.CreateUser(req.Username, req.Email, req.Password)
+	user, err := h.userService.CreateUser(req.Username, req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, services.ErrUserExists) {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -56,7 +56,10 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(createUserResponse{ID: user.ID, Username: user.Username, Email: user.Email})
+	err = json.NewEncoder(w).Encode(createUserResponse{ID: user.ID, Username: user.Username, Email: user.Email})
+	if err != nil {
+		return
+	}
 }
 
 type loginRequest struct {
@@ -76,7 +79,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.Service.Authenticate(req.Email, req.Password)
+	token, err := h.userService.Authenticate(req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidCredentials) {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -86,5 +89,8 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(loginResponse{Token: token})
+	err = json.NewEncoder(w).Encode(loginResponse{Token: token})
+	if err != nil {
+		return
+	}
 }

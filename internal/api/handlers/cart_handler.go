@@ -34,7 +34,10 @@ func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not fetch cart", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(cart)
+	err = json.NewEncoder(w).Encode(cart)
+	if err != nil {
+		return
+	}
 }
 
 type addItemReq struct {
@@ -56,7 +59,10 @@ func (h *CartHandler) AddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(item)
+	err = json.NewEncoder(w).Encode(item)
+	if err != nil {
+		return
+	}
 }
 
 type updateItemReq struct {
@@ -75,7 +81,10 @@ func (h *CartHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not update item", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(item)
+	err = json.NewEncoder(w).Encode(item)
+	if err != nil {
+		return
+	}
 }
 
 func (h *CartHandler) RemoveItem(w http.ResponseWriter, r *http.Request) {
