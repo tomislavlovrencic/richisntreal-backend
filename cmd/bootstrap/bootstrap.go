@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
 	"richisntreal-backend/cmd/config"
@@ -50,7 +51,7 @@ func NewRouter() *chi.Mux {
 // runMigrations applies all “.up.sql” scripts in migrations/ against your DB.
 func runMigrations(mysqlCfg config.MySQL) {
 	// source://directory and database://dsn
-	sourceURL := "file://migrations"
+	sourceURL := "file://internal/infrastructure/mysql/migrations"
 	dbURL := fmt.Sprintf(
 		"mysql://%s:%s@tcp(%s:%s)/%s?multiStatements=true",
 		mysqlCfg.Username,

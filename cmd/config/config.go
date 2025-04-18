@@ -48,7 +48,7 @@ func Load() error {
 	v.SetDefault("mysql.database", "richisntreal")
 
 	// Env‑vars
-	v.SetEnvPrefix("RISNTREAL")
+	v.SetEnvPrefix("RICHISNTREAL")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
