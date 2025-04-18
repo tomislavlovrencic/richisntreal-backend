@@ -13,7 +13,7 @@ import (
 	"richisntreal-backend/cmd/config"
 	"richisntreal-backend/internal/api/handlers"
 	"richisntreal-backend/internal/core/services"
-	mysqlInfra "richisntreal-backend/internal/infrastructure/mysql"
+	mysql "richisntreal-backend/internal/infrastructure/mysql"
 )
 
 func NewRouter() *chi.Mux {
@@ -27,24 +27,29 @@ func NewRouter() *chi.Mux {
 	runMigrations(cfg.MySQL)
 
 	// 3) Init MySQL client
-	mysqlClient, err := mysqlInfra.NewMySQL(cfg.MySQL)
+	mysqlClient, err := mysql.NewMySQL(cfg.MySQL)
 	if err != nil {
 		log.Fatalf("failed to connect to MySQL: %v", err)
 	}
 
 	// 4) Wire services & handlers
-	userRepo := mysqlInfra.NewUserRepository(mysqlClient.DB)
+	userRepo := mysql.NewUserRepository(mysqlClient.DB)
 	userSvc := services.NewUserService(userRepo, cfg.App.JWTSecret)
 	userHandler := handlers.NewUserHandler(userSvc)
 
-	cartRepo := mysqlInfra.NewCartRepository(mysqlClient.DB)
+	cartRepo := mysql.NewCartRepository(mysqlClient.DB)
 	cartService := services.NewCartService(cartRepo)
 	cartHandler := handlers.NewCartHandler(cartService)
+
+	prodRepo := mysql.NewProductRepository(mysqlClient.DB)
+	prodService := services.NewProductService(prodRepo)
+	prodHandler := handlers.NewProductHandler(prodService)
 
 	// 5) Mount routes
 	r := chi.NewRouter()
 	userHandler.RegisterRoutes(r)
 	cartHandler.RegisterRoutes(r)
+	prodHandler.RegisterRoutes(r)
 	return r
 }
 
