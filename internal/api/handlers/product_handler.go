@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,7 +10,6 @@ import (
 	"richisntreal-backend/internal/core/services"
 )
 
-// ProductHandler wires HTTP requests to product services.
 type ProductHandler struct {
 	productService *services.ProductService
 }
@@ -18,9 +18,20 @@ func NewProductHandler(productService *services.ProductService) *ProductHandler 
 	return &ProductHandler{productService: productService}
 }
 
+// RegisterRoutes binds CRUD routes for admin products.
 func (h *ProductHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/products", h.List)
 	r.Get("/products/{id}", h.GetByID)
+	r.Post("/products", h.Create)
+	r.Put("/products/{id}", h.Update)
+	r.Delete("/products/{id}", h.Delete)
+}
+
+type productRequest struct {
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	SKU         string  `json:"sku"`
+	Price       float64 `json:"price"`
 }
 
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -36,13 +47,11 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid product id", http.StatusBadRequest)
 		return
 	}
-
 	prod, err := h.productService.GetProductByID(id)
 	if err != nil {
 		http.Error(w, "could not fetch product", http.StatusInternalServerError)
@@ -56,4 +65,61 @@ func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+}
+
+func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req productRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request payload", http.StatusBadRequest)
+		return
+	}
+	prod, err := h.productService.CreateProduct(req.Name, req.Description, req.SKU, req.Price)
+	if err != nil {
+		http.Error(w, "could not create product", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	err = json.NewEncoder(w).Encode(prod)
+	if err != nil {
+		return
+	}
+}
+
+func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid product id", http.StatusBadRequest)
+		return
+	}
+	var req productRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request payload", http.StatusBadRequest)
+		return
+	}
+	prod, err := h.productService.UpdateProduct(id, req.Name, req.Description, req.SKU, req.Price)
+	if err != nil {
+		if errors.Is(err, services.ErrProductNotFound) {
+			http.Error(w, "product not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "could not update product", http.StatusInternalServerError)
+		}
+		return
+	}
+	err = json.NewEncoder(w).Encode(prod)
+	if err != nil {
+		return
+	}
+}
+
+func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid product id", http.StatusBadRequest)
+		return
+	}
+	if err = h.productService.DeleteProduct(id); err != nil {
+		http.Error(w, "could not delete product", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
