@@ -49,3 +49,20 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	}
 	return &u, nil
 }
+
+// FindByID retrieves a user (including password) by their ID.
+func (r *UserRepository) FindByID(id int64) (*models.User, error) {
+	var u models.User
+	err := r.db.Get(&u, `
+        SELECT id, username, email, password, created_at, updated_at
+          FROM users
+         WHERE id = ?`, id,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}

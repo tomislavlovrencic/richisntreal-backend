@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"richisntreal-backend/internal/core/services"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -23,6 +24,7 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 func (h *UserHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/users", h.CreateUser)
 	r.Post("/login", h.Login)
+	r.Get("/users/{id}", h.GetUser)
 }
 
 type createUserRequest struct {
@@ -90,6 +92,35 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = json.NewEncoder(w).Encode(loginResponse{Token: token})
+	if err != nil {
+		return
+	}
+}
+
+// GetUser handles GET /users/{id}
+func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.userService.GetByID(id)
+	if err != nil {
+		if errors.Is(err, services.ErrUserNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(createUserResponse{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+	})
 	if err != nil {
 		return
 	}

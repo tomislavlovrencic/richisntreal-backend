@@ -75,10 +75,21 @@ func (s *UserService) Authenticate(email, password string) (string, error) {
 	return token.SignedString([]byte(s.jwtSecret))
 }
 
-// ErrUserExists is returned when trying to register with an email that's already taken.
-var ErrUserExists = errors.New("user already exists")
+// GetByID looks up a user by ID (stripping out their password).
+func (s *UserService) GetByID(id int64) (*models.User, error) {
+	user, err := s.userRepository.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+	user.Password = ""
+	return user, nil
+}
 
-// ErrInvalidCredentials is returned when login credentials are incorrect.
+var ErrUserNotFound = errors.New("user not found")
+var ErrUserExists = errors.New("user already exists")
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
 // UserRepository defines persistence operations for users.
@@ -86,4 +97,5 @@ type UserRepository interface {
 	ExistsByEmail(email string) (bool, error)
 	Create(user *models.User) (int64, error)
 	FindByEmail(email string) (*models.User, error)
+	FindByID(id int64) (*models.User, error)
 }
