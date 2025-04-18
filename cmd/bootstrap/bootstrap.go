@@ -36,9 +36,14 @@ func NewRouter() *chi.Mux {
 	userSvc := services.NewUserService(userRepo, cfg.App.JWTSecret)
 	userHandler := handlers.NewUserHandler(userSvc)
 
+	cartRepo := mysqlInfra.NewCartRepository(mysqlClient.DB)
+	cartService := services.NewCartService(cartRepo)
+	cartHandler := handlers.NewCartHandler(cartService)
+
 	// 5) Mount routes
 	r := chi.NewRouter()
 	userHandler.RegisterRoutes(r)
+	cartHandler.RegisterRoutes(r)
 	return r
 }
 

@@ -16,8 +16,8 @@ type UserService struct {
 }
 
 // NewUserService constructs a new UserService.
-func NewUserService(repo UserRepository, jwtSecret string) *UserService {
-	return &UserService{userRepository: repo, jwtSecret: jwtSecret}
+func NewUserService(userRepository UserRepository, jwtSecret string) *UserService {
+	return &UserService{userRepository: userRepository, jwtSecret: jwtSecret}
 }
 
 // CreateUser registers a new user, hashing their password.
