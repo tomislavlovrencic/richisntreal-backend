@@ -1,9 +1,12 @@
+// File: internal/infrastructure/mysql/user_repository.go
 package mysql
 
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"richisntreal-backend/internal/core/domain/models"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -13,56 +16,77 @@ type UserRepository struct {
 	db *sqlx.DB
 }
 
-// NewUserRepository constructs a new MySQL-backed UserRepository.
 func NewUserRepository(db *sqlx.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// ExistsByEmail returns true if a user with the given email already exists.
 func (r *UserRepository) ExistsByEmail(email string) (bool, error) {
 	var count int
 	err := r.db.Get(&count, `SELECT COUNT(1) FROM users WHERE email = ?`, email)
 	return count > 0, err
 }
 
-// Create inserts a new user and returns its generated ID.
 func (r *UserRepository) Create(user *models.User) (int64, error) {
+	now := time.Now()
+	user.CreatedAt = now
+	user.UpdatedAt = now
+
+	query := `
+    INSERT INTO users
+        (username, email, password, first_name, last_name, country, date_of_birth, created_at, updated_at)
+    VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	res, err := r.db.Exec(
-		`INSERT INTO users (username, email, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		user.Username, user.Email, user.Password, user.CreatedAt, user.UpdatedAt,
+		query,
+		user.Username,
+		user.Email,
+		user.Password,
+		user.FirstName,
+		user.LastName,
+		user.Country,
+		user.DateOfBirth,
+		user.CreatedAt,
+		user.UpdatedAt,
 	)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("UserRepository.Create: %w", err)
 	}
 	return res.LastInsertId()
 }
 
-// FindByEmail retrieves a user by email (including password hash).
 func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	var u models.User
-	err := r.db.Get(&u, `SELECT id, username, email, password, created_at, updated_at FROM users WHERE email = ?`, email)
+	query := `
+    SELECT id, username, email, password,
+           first_name, last_name, country, date_of_birth,
+           created_at, updated_at
+      FROM users
+     WHERE email = ?
+     LIMIT 1`
+	err := r.db.Get(&u, query, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("UserRepository.FindByEmail: %w", err)
 	}
 	return &u, nil
 }
 
-// FindByID retrieves a user (including password) by their ID.
 func (r *UserRepository) FindByID(id int64) (*models.User, error) {
 	var u models.User
-	err := r.db.Get(&u, `
-        SELECT id, username, email, password, created_at, updated_at
-          FROM users
-         WHERE id = ?`, id,
-	)
+	query := `
+    SELECT id, username, email, password,
+           first_name, last_name, country, date_of_birth,
+           created_at, updated_at
+      FROM users
+     WHERE id = ?`
+	err := r.db.Get(&u, query, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("UserRepository.FindByID: %w", err)
 	}
 	return &u, nil
 }

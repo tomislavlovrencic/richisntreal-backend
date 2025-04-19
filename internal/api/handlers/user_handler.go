@@ -58,23 +58,31 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+type loginResponse struct {
+	Token string      `json:"token"`
+	User  userProfile `json:"user"`
 }
 
-type loginResponse struct {
-	Token string `json:"token"`
+type userProfile struct {
+	ID        int64  `json:"id"`
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
 }
 
 // Login handles user authentication.
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req loginRequest
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 		return
 	}
 
+	// 2a) Authenticate & get token
 	token, err := h.userService.Authenticate(req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidCredentials) {
@@ -85,7 +93,26 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(loginResponse{Token: token})
+	// 2b) Fetch the user record (so we can include first/last name):
+	user, err := h.userService.GetByEmail(req.Email)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 3) Marshal combined response
+	resp := loginResponse{
+		Token: token,
+		User: userProfile{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+		},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		return
 	}

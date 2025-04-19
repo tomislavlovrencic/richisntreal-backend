@@ -88,6 +88,19 @@ func (s *UserService) GetByID(id int64) (*models.User, error) {
 	return user, nil
 }
 
+func (s *UserService) GetByEmail(email string) (*models.User, error) {
+	user, err := s.userRepository.FindByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+
+	user.Password = ""
+	return user, nil
+}
+
 var ErrUserNotFound = errors.New("user not found")
 var ErrUserExists = errors.New("user already exists")
 var ErrInvalidCredentials = errors.New("invalid credentials")
