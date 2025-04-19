@@ -127,7 +127,7 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	// 5) Write JSON
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
+	err = json.NewEncoder(w).Encode(struct {
 		ID       int64  `json:"id"`
 		Username string `json:"username"`
 		Email    string `json:"email"`
@@ -136,4 +136,7 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		Username: user.Username,
 		Email:    user.Email,
 	})
+	if err != nil {
+		return
+	}
 }

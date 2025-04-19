@@ -25,7 +25,7 @@ type productRequest struct {
 	Price       float64 `json:"price"`
 }
 
-func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) List(w http.ResponseWriter, _ *http.Request) {
 	prods, err := h.productService.ListProducts()
 	if err != nil {
 		http.Error(w, "could not fetch products", http.StatusInternalServerError)
