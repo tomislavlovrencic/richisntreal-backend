@@ -7,6 +7,7 @@ import (
 	"richisntreal-backend/internal/api/middleware"
 	"richisntreal-backend/internal/core/services"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -22,15 +23,24 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 }
 
 type createUserRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username    string `json:"username"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	Country     string `json:"country"`
+	DateOfBirth string `json:"dateOfBirth"` // ISO 8601, e.g. "1990-05-01"
 }
 
 type createUserResponse struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	ID          int64     `json:"id"`
+	Username    string    `json:"username"`
+	Email       string    `json:"email"`
+	FirstName   string    `json:"firstName"`
+	LastName    string    `json:"lastName"`
+	Country     string    `json:"country"`
+	DateOfBirth string    `json:"dateOfBirth"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 // CreateUser handles user registration.
@@ -41,7 +51,27 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userService.CreateUser(req.Username, req.Email, req.Password)
+	// parse date of birth
+	var dobPtr *time.Time
+	if req.DateOfBirth != "" {
+		dob, err := time.Parse(time.RFC3339, req.DateOfBirth)
+		if err != nil {
+			http.Error(w, "invalid dateOfBirth format; use RFC3339", http.StatusBadRequest)
+			return
+		}
+		dobPtr = &dob
+	}
+
+	// call service (assumes signature changed accordingly)
+	user, err := h.userService.CreateUser(
+		req.Username,
+		req.Email,
+		req.Password,
+		req.FirstName,
+		req.LastName,
+		req.Country,
+		dobPtr,
+	)
 	if err != nil {
 		if errors.Is(err, services.ErrUserExists) {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -51,8 +81,23 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// build response
+	resp := createUserResponse{
+		ID:        user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Country:   user.Country,
+		CreatedAt: user.CreatedAt,
+	}
+	if user.DateOfBirth != nil {
+		resp.DateOfBirth = user.DateOfBirth.Format(time.RFC3339)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	err = json.NewEncoder(w).Encode(createUserResponse{ID: user.ID, Username: user.Username, Email: user.Email})
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		return
 	}

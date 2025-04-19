@@ -20,8 +20,11 @@ func NewUserService(userRepository UserRepository, jwtSecret string) *UserServic
 	return &UserService{userRepository: userRepository, jwtSecret: jwtSecret}
 }
 
-// CreateUser registers a new user, hashing their password.
-func (s *UserService) CreateUser(username, email, password string) (*models.User, error) {
+func (s *UserService) CreateUser(
+	username, email, password, firstName, lastName, country string,
+	dateOfBirth *time.Time,
+) (*models.User, error) {
+	// 1) check for duplicate email
 	exists, err := s.userRepository.ExistsByEmail(email)
 	if err != nil {
 		return nil, err
@@ -30,6 +33,7 @@ func (s *UserService) CreateUser(username, email, password string) (*models.User
 		return nil, ErrUserExists
 	}
 
+	// 2) hash password
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -37,19 +41,27 @@ func (s *UserService) CreateUser(username, email, password string) (*models.User
 
 	now := time.Now()
 	user := &models.User{
-		Username:  username,
-		Email:     email,
-		Password:  string(hash),
-		CreatedAt: now,
-		UpdatedAt: now,
+		Username:    username,
+		Email:       email,
+		Password:    string(hash),
+		FirstName:   firstName,
+		LastName:    lastName,
+		Country:     country,
+		DateOfBirth: dateOfBirth,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
+	// 3) persist
 	id, err := s.userRepository.Create(user)
 	if err != nil {
 		return nil, err
 	}
 	user.ID = id
-	user.Password = "" // clear password before returning
+
+	// 4) clear password hash before returning
+	user.Password = ""
+
 	return user, nil
 }
 
