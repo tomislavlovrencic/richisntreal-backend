@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"richisntreal-backend/internal/api/middleware"
 	"richisntreal-backend/internal/core/services"
 )
 
@@ -17,23 +18,31 @@ func NewCartHandler(cartService *services.CartService) *CartHandler {
 	return &CartHandler{cartService: cartService}
 }
 
-func (h *CartHandler) RegisterRoutes(r chi.Router) {
-	r.Route("/users/{userID}/cart", func(r chi.Router) {
-		r.Get("/", h.GetCart)
-		r.Post("/items", h.AddItem)
-		r.Put("/items/{itemID}", h.UpdateItem)
-		r.Delete("/items/{itemID}", h.RemoveItem)
-		r.Delete("/", h.ClearCart)
-	})
-}
-
 func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
-	userID, _ := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	// 1) Authenticate & authorize
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// 2) Fetch cart
 	cart, err := h.cartService.GetCart(userID)
 	if err != nil {
 		http.Error(w, "could not fetch cart", http.StatusInternalServerError)
 		return
 	}
+
+	// 3) Respond
 	err = json.NewEncoder(w).Encode(cart)
 	if err != nil {
 		return
@@ -47,9 +56,23 @@ type addItemReq struct {
 }
 
 func (h *CartHandler) AddItem(w http.ResponseWriter, r *http.Request) {
-	userID, _ := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	var req addItemReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
@@ -70,7 +93,26 @@ type updateItemReq struct {
 }
 
 func (h *CartHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
-	itemID, _ := strconv.ParseInt(chi.URLParam(r, "itemID"), 10, 64)
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	itemID, err := strconv.ParseInt(chi.URLParam(r, "itemID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
 	var req updateItemReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -88,17 +130,52 @@ func (h *CartHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) RemoveItem(w http.ResponseWriter, r *http.Request) {
-	itemID, _ := strconv.ParseInt(chi.URLParam(r, "itemID"), 10, 64)
-	if err := h.cartService.RemoveItem(itemID); err != nil {
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	itemID, err := strconv.ParseInt(chi.URLParam(r, "itemID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+	if err = h.cartService.RemoveItem(itemID); err != nil {
 		http.Error(w, "could not remove item", http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *CartHandler) ClearCart(w http.ResponseWriter, r *http.Request) {
-	userID, _ := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
-	if err := h.cartService.ClearCart(userID); err != nil {
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err = h.cartService.ClearCart(userID); err != nil {
 		http.Error(w, "could not clear cart", http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

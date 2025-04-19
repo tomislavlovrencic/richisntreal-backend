@@ -18,15 +18,6 @@ func NewProductHandler(productService *services.ProductService) *ProductHandler 
 	return &ProductHandler{productService: productService}
 }
 
-// RegisterRoutes binds CRUD routes for admin products.
-func (h *ProductHandler) RegisterRoutes(r chi.Router) {
-	r.Get("/products", h.List)
-	r.Get("/products/{id}", h.GetByID)
-	r.Post("/products", h.Create)
-	r.Put("/products/{id}", h.Update)
-	r.Delete("/products/{id}", h.Delete)
-}
-
 type productRequest struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description"`

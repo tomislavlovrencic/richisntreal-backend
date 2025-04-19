@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"richisntreal-backend/internal/api/middleware"
 	"richisntreal-backend/internal/core/services"
 	"strconv"
 
@@ -18,13 +19,6 @@ type UserHandler struct {
 // NewUserHandler constructs a new UserHandler.
 func NewUserHandler(userService *services.UserService) *UserHandler {
 	return &UserHandler{userService: userService}
-}
-
-// RegisterRoutes binds user routes onto the router.
-func (h *UserHandler) RegisterRoutes(r chi.Router) {
-	r.Post("/users", h.CreateUser)
-	r.Post("/login", h.Login)
-	r.Get("/users/{id}", h.GetUser)
 }
 
 type createUserRequest struct {
@@ -97,8 +91,16 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetUser handles GET /users/{id}
+// GetUser handles GET /users/{id}; only the logged‑in user may fetch their own record.
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+	// 1) Extract the caller’s userID from the context (AuthMiddleware must have run).
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 2) Parse the URL param
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -106,6 +108,13 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 3) Enforce ownership
+	if caller != id {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// 4) Fetch & return
 	user, err := h.userService.GetByID(id)
 	if err != nil {
 		if errors.Is(err, services.ErrUserNotFound) {
@@ -116,12 +125,15 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(createUserResponse{
+	// 5) Write JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}{
 		ID:       user.ID,
 		Username: user.Username,
 		Email:    user.Email,
 	})
-	if err != nil {
-		return
-	}
 }

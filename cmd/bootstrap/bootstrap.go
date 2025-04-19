@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"richisntreal-backend/internal/api/auth"
+	"richisntreal-backend/internal/api/routes"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-migrate/migrate/v4"
@@ -53,13 +55,15 @@ func NewRouter() *chi.Mux {
 	paySvc := services.NewPaymentService(payRepo, cfg.Stripe.SecretKey)
 	payHandler := handlers.NewPaymentHandler(paySvc, orderService)
 
+	jwtAuth := auth.NewJWTAuthenticator(cfg.JWT.Secret)
+
 	// 5) Mount routes
 	r := chi.NewRouter()
-	userHandler.RegisterRoutes(r)
-	cartHandler.RegisterRoutes(r)
-	prodHandler.RegisterRoutes(r)
-	orderHandler.RegisterRoutes(r)
-	payHandler.RegisterRoutes(r)
+	routes.RegisterUserRoutes(r, userHandler, jwtAuth)
+	routes.RegisterProductRoutes(r, prodHandler, jwtAuth)
+	routes.RegisterCartRoutes(r, cartHandler, jwtAuth)
+	routes.RegisterOrderRoutes(r, orderHandler, jwtAuth)
+	routes.RegisterPaymentRoutes(r, payHandler, jwtAuth)
 	return r
 }
 

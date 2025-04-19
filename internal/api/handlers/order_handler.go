@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"richisntreal-backend/internal/api/middleware"
 	"richisntreal-backend/internal/core/services"
 )
 
@@ -17,30 +18,40 @@ func NewOrderHandler(orderService *services.OrderService) *OrderHandler {
 	return &OrderHandler{orderService: orderService}
 }
 
-func (h *OrderHandler) RegisterRoutes(r chi.Router) {
-	// Create and list per-user
-	r.Route("/users/{userID}/orders", func(r chi.Router) {
-		r.Post("/", h.CreateOrder)
-		r.Get("/", h.ListOrders)
-	})
-	// Retrieve any order by ID
-	r.Get("/orders/{orderID}", h.GetOrder)
-}
-
 type createOrderResponse struct {
 	ID     int64   `json:"id"`
 	UserID int64   `json:"user_id"`
 	Total  float64 `json:"total"`
 }
 
-// CreateOrder converts a cart into an order
+// CreateOrder converts a cart into a new order, only for the logged‑in user.
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	userID, _ := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	// 0) who’s calling?
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 1) which user’s cart?
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid userID", http.StatusBadRequest)
+		return
+	}
+	// 2) enforce ownership
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// 3) create the order
 	ord, err := h.orderService.CreateOrder(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	w.WriteHeader(http.StatusCreated)
 	err = json.NewEncoder(w).Encode(createOrderResponse{
 		ID:     ord.ID,
@@ -52,9 +63,24 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ListOrders fetches all orders for a user
+// ListOrders fetches all orders for the logged‑in user.
 func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
-	userID, _ := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid userID", http.StatusBadRequest)
+		return
+	}
+	if caller != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	orders, err := h.orderService.GetOrdersForUser(userID)
 	if err != nil {
 		http.Error(w, "could not fetch orders", http.StatusInternalServerError)
@@ -66,9 +92,20 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetOrder fetches any single order by its ID
+// GetOrder fetches a single order by its ID, only if the logged‑in user owns it.
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
-	orderID, _ := strconv.ParseInt(chi.URLParam(r, "orderID"), 10, 64)
+	caller := middleware.FromContext(r.Context())
+	if caller == 0 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	orderID, err := strconv.ParseInt(chi.URLParam(r, "orderID"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid orderID", http.StatusBadRequest)
+		return
+	}
+
 	ord, err := h.orderService.GetOrderByID(orderID)
 	if err != nil {
 		http.Error(w, "could not fetch order", http.StatusInternalServerError)
@@ -78,6 +115,13 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "order not found", http.StatusNotFound)
 		return
 	}
+
+	// enforce ownership
+	if ord.UserID != caller {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	err = json.NewEncoder(w).Encode(ord)
 	if err != nil {
 		return
