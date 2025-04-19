@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"github.com/go-chi/cors"
 	"log"
 	"richisntreal-backend/internal/api/auth"
 	"richisntreal-backend/internal/api/routes"
@@ -59,6 +60,17 @@ func NewRouter() *chi.Mux {
 
 	// 5) Mount routes
 	r := chi.NewRouter()
+
+	r.Use(cors.Handler(cors.Options{
+		// <-- in dev you’ll want to allow your front‑end origin
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true, // if you ever use cookies or credentialed requests
+		MaxAge:           300,  // how long browser can cache the preflight response
+	}))
+
 	routes.RegisterUserRoutes(r, userHandler, jwtAuth)
 	routes.RegisterProductRoutes(r, prodHandler, jwtAuth)
 	routes.RegisterCartRoutes(r, cartHandler, jwtAuth)
