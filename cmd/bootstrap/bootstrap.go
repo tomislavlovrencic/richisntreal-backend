@@ -34,7 +34,7 @@ func NewRouter() *chi.Mux {
 
 	// 4) Wire services & handlers
 	userRepo := mysql.NewUserRepository(mysqlClient.DB)
-	userSvc := services.NewUserService(userRepo, cfg.App.JWTSecret)
+	userSvc := services.NewUserService(userRepo, cfg.JWT.Secret)
 	userHandler := handlers.NewUserHandler(userSvc)
 
 	cartRepo := mysql.NewCartRepository(mysqlClient.DB)
@@ -50,7 +50,7 @@ func NewRouter() *chi.Mux {
 	orderHandler := handlers.NewOrderHandler(orderService)
 
 	payRepo := mysql.NewPaymentRepository(mysqlClient.DB)
-	paySvc := services.NewPaymentService(payRepo, cfg.App.StripeSecretKey)
+	paySvc := services.NewPaymentService(payRepo, cfg.Stripe.SecretKey)
 	payHandler := handlers.NewPaymentHandler(paySvc, orderService)
 
 	// 5) Mount routes

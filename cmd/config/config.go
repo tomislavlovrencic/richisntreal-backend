@@ -11,18 +11,26 @@ import (
 var config Cfg
 
 type Cfg struct {
-	App   AppConfig `mapstructure:"app"`
-	MySQL MySQL     `mapstructure:"mysql"`
+	App    AppConfig `mapstructure:"app"`
+	MySQL  MySQL     `mapstructure:"mysql"`
+	Stripe Stripe    `mapstructure:"stripe"`
+	JWT    JWT       `mapstructure:"jwt"`
 }
 
 type AppConfig struct {
-	Image           string `mapstructure:"image"`
-	ImageTag        string `mapstructure:"imageTag"`
-	Name            string `mapstructure:"name"`
-	Port            string `mapstructure:"port"`
-	JWTSecret       string `mapstructure:"jwtSecret"`
-	StripeSecretKey string `mapstructure:"stripeSecretKey"`
-	StripePubKey    string `mapstructure:"stripePubKey"`
+	Image    string `mapstructure:"image"`
+	ImageTag string `mapstructure:"image_tag"`
+	Name     string `mapstructure:"name"`
+	Port     string `mapstructure:"port"`
+}
+
+type JWT struct {
+	Secret string `mapstructure:"secret"`
+}
+
+type Stripe struct {
+	SecretKey string `mapstructure:"secret_key"`
+	PublicKey string `mapstructure:"public_key"`
 }
 
 type MySQL struct {
@@ -38,13 +46,12 @@ func Load() error {
 
 	// Defaults
 	v.SetDefault("app.image", "richisntreal-backend")
-	v.SetDefault("app.imageTag", "latest")
+	v.SetDefault("app.image_tag", "latest")
 	v.SetDefault("app.name", "richisntreal")
 	v.SetDefault("app.port", "8080")
-	v.SetDefault("app.jwtSecret", "changeme")
-	v.SetDefault("app.stripeSecretKey", "")
-	v.SetDefault("app.stripePubKey", "")
-
+	v.SetDefault("jwt.secret", "changeme")
+	v.SetDefault("stripe.secret_key", "")
+	v.SetDefault("stripe.public_key", "")
 	v.SetDefault("mysql.host", "localhost")
 	v.SetDefault("mysql.port", "3306")
 	v.SetDefault("mysql.username", "root")
