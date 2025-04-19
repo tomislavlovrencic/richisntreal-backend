@@ -16,11 +16,13 @@ type Cfg struct {
 }
 
 type AppConfig struct {
-	Image     string `mapstructure:"image"`
-	ImageTag  string `mapstructure:"imageTag"`
-	Name      string `mapstructure:"name"`
-	Port      string `mapstructure:"port"`
-	JWTSecret string `mapstructure:"jwtSecret"`
+	Image           string `mapstructure:"image"`
+	ImageTag        string `mapstructure:"imageTag"`
+	Name            string `mapstructure:"name"`
+	Port            string `mapstructure:"port"`
+	JWTSecret       string `mapstructure:"jwtSecret"`
+	StripeSecretKey string `mapstructure:"stripeSecretKey"`
+	StripePubKey    string `mapstructure:"stripePubKey"`
 }
 
 type MySQL struct {
@@ -40,6 +42,8 @@ func Load() error {
 	v.SetDefault("app.name", "richisntreal")
 	v.SetDefault("app.port", "8080")
 	v.SetDefault("app.jwtSecret", "changeme")
+	v.SetDefault("app.stripeSecretKey", "")
+	v.SetDefault("app.stripePubKey", "")
 
 	v.SetDefault("mysql.host", "localhost")
 	v.SetDefault("mysql.port", "3306")

@@ -1,20 +1,36 @@
 package services
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
-	"github.com/google/uuid"
+	stripe "github.com/stripe/stripe-go/v74"
+	"github.com/stripe/stripe-go/v74/charge"
+
 	"richisntreal-backend/internal/core/domain/models"
 )
 
+// ErrPaymentFailed is returned when the gateway reports a failure.
+var ErrPaymentFailed = errors.New("payment failed")
+
+// PaymentService handles charging and recording payment transactions.
 type PaymentService struct {
 	paymentRepository PaymentRepository
+	stripeKey         string
 }
 
-func NewPaymentService(paymentRepository PaymentRepository) *PaymentService {
-	return &PaymentService{paymentRepository: paymentRepository}
+// NewPaymentService constructs a PaymentService.
+// Pass cfg.App.StripeSecretKey from your bootstrap.
+func NewPaymentService(paymentRepository PaymentRepository, stripeKey string) *PaymentService {
+	return &PaymentService{
+		paymentRepository: paymentRepository,
+		stripeKey:         stripeKey,
+	}
 }
 
+// ProcessPayment creates a pending record, sends a Stripe charge,
+// updates the record with the result, and returns the final transaction.
 func (s *PaymentService) ProcessPayment(
 	orderID int64,
 	amount float64,
@@ -24,7 +40,7 @@ func (s *PaymentService) ProcessPayment(
 	tx := &models.PaymentTransaction{
 		OrderID:  orderID,
 		Amount:   amount,
-		Currency: currency,
+		Currency: strings.ToLower(currency),
 		Provider: provider,
 		Token:    token,
 		Status:   "pending",
@@ -35,19 +51,38 @@ func (s *PaymentService) ProcessPayment(
 	}
 	tx.ID = id
 
-	// 2) Simulate charging—here we always succeed with a random provider ID
-	providerTxID := uuid.New().String()
-	tx.ProviderTxID = &providerTxID
-	tx.Status = "succeeded"
+	// 2) Configure Stripe and send the charge
+	stripe.Key = s.stripeKey
 
-	// 3) Update the record
-	if err := s.paymentRepository.UpdateStatus(id, tx.Status, nil); err != nil {
+	params := &stripe.ChargeParams{
+		Amount:   stripe.Int64(int64(amount * 100)), // convert dollars to cents
+		Currency: stripe.String(tx.Currency),
+	}
+	err = params.SetSource(token)
+	if err != nil {
+		return nil, err
+	} // e.g. "tok_visa" in test mode
+
+	ch, err := charge.New(params)
+	if err != nil {
+		// update record as failed
+		msg := err.Error()
+		_ = s.paymentRepository.UpdateStatus(id, "failed", &msg)
+		return nil, fmt.Errorf("%w: %s", ErrPaymentFailed, err.Error())
+	}
+
+	// 3) On success, update our transaction
+	providerTxID := ch.ID
+	tx.ProviderTxID = &providerTxID
+	tx.Status = string(ch.Status) // e.g. "succeeded"
+	if err = s.paymentRepository.UpdateStatus(id, tx.Status, nil); err != nil {
 		return nil, fmt.Errorf("failed to update payment status: %w", err)
 	}
 
 	return tx, nil
 }
 
+// GetPaymentByOrder fetches the transaction associated with an order.
 func (s *PaymentService) GetPaymentByOrder(orderID int64) (*models.PaymentTransaction, error) {
 	return s.paymentRepository.FindByOrder(orderID)
 }
